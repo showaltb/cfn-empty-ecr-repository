@@ -1,0 +1,14 @@
+{
+  "name": "cfn-empty-ecr-repository",
+  "version": "1.0.0",
+  "description": "AWS CloudFormation Custom Resource Lambda to empty an ECR Repository",
+  "main": "index.js",
+  "repository": "git@github.com:showaltb/cfn-empty-ecr-repository.git",
+  "author": "Bob Showalter <showaltb@gmail.com>",
+  "license": "MIT",
+  "scripts": {
+    "deploy": ". ./.env && aws --profile ${AWS_PROFILE:-default} cloudformation deploy --capabilities CAPABILITY_IAM --template-file template.yml --stack-name $STACK_NAME",
+    "delete-stack": ". ./.env && aws --profile ${AWS_PROFILE:-default} cloudformation delete-stack --stack-name $STACK_NAME",
+    "fill-repository": "./fill_repository.sh"
+  }
+}

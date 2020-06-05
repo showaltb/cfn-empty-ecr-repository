@@ -1,0 +1,96 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: cfn-empty-ecr-repository
+
+Resources:
+
+  EmptyEcrRepositoryRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: root
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: arn:aws:logs:*:*:*
+            - Effect: Allow
+              Action:
+                - ecr:ListImages
+                - ecr:batchDeleteImage
+              Resource: !GetAtt Repository.Arn
+
+  EmptyEcrRepository:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: CloudFormation custom resource to empty ECR repository
+      Handler: index.handler
+      Role: !GetAtt EmptyEcrRepositoryRole.Arn
+      Runtime: nodejs12.x
+      Timeout: 300
+      Code:
+        ZipFile: |
+          const AWS = require('aws-sdk')
+          const ecr = new AWS.ECR()
+          const response = require('cfn-response')
+
+          // promisify response.send
+          const sendResponse = (event, context, ...args) => {
+            return new Promise((resolve, reject) => {
+              context.done = (err) => { err ? reject(err) : resolve() }
+              response.send(event, context, ...args)
+            })
+          }
+
+          const emptyRepository = async repository => {
+            console.log(`Deleting contents of ${repository}`)
+            let token
+            while (true) {
+              const response = await ecr.listImages({
+                repositoryName: repository,
+                nextToken: token
+              }).promise()
+              if (response.imageIds.length) {
+                await ecr.batchDeleteImage({
+                  repositoryName: repository,
+                  imageIds: response.imageIds
+                }).promise()
+              }
+              token = response.nextToken
+              if (!token) break
+            }
+          }
+
+          exports.handler = async (event, context) => {
+            console.log('Request body:', JSON.stringify(event, null, 2))
+            try {
+              if (event.RequestType === 'Delete') {
+                const repository = event.ResourceProperties.Repository
+                await emptyRepository(repository)
+              }
+            }
+            catch (err) {
+              return sendResponse(event, context, response.FAILED, { Error: err })
+            }
+            return sendResponse(event, context, response.SUCCESS, {})
+          }
+
+  Repository:
+    Type: AWS::ECR::Repository
+
+  RepositoryEmptier:
+    Type: Custom::EmptyEcrRepository
+    Properties:
+      ServiceToken: !GetAtt EmptyEcrRepository.Arn
+      Repository: !Ref Repository
