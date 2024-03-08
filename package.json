@@ -2,7 +2,6 @@
   "name": "cfn-empty-ecr-repository",
   "version": "1.0.0",
   "description": "AWS CloudFormation Custom Resource Lambda to empty an ECR Repository",
-  "main": "index.js",
   "repository": "git@github.com:showaltb/cfn-empty-ecr-repository.git",
   "author": "Bob Showalter <showaltb@gmail.com>",
   "license": "MIT",

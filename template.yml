@@ -37,12 +37,12 @@ Resources:
       Description: CloudFormation custom resource to empty ECR repository
       Handler: index.handler
       Role: !GetAtt EmptyEcrRepositoryRole.Arn
-      Runtime: nodejs12.x
+      Runtime: nodejs20.x
       Timeout: 300
       Code:
         ZipFile: |
-          const AWS = require('aws-sdk')
-          const ecr = new AWS.ECR()
+          const { ECRClient, ListImagesCommand, BatchDeleteImageCommand } = require('@aws-sdk/client-ecr')
+          const ecr = new ECRClient()
           const response = require('cfn-response')
 
           // promisify response.send
@@ -57,15 +57,15 @@ Resources:
             console.log(`Deleting contents of ${repository}`)
             let token
             while (true) {
-              const response = await ecr.listImages({
+              const response = await ecr.send(new ListImagesCommand({
                 repositoryName: repository,
                 nextToken: token
-              }).promise()
+              }))
               if (response.imageIds.length) {
-                await ecr.batchDeleteImage({
+                await ecr.send(new BatchDeleteImageCommand({
                   repositoryName: repository,
                   imageIds: response.imageIds
-                }).promise()
+                }))
               }
               token = response.nextToken
               if (!token) break
@@ -81,7 +81,7 @@ Resources:
               }
             }
             catch (err) {
-              return sendResponse(event, context, response.FAILED, { Error: err })
+              return sendResponse(event, context, response.FAILED, { Error: err.stack })
             }
             return sendResponse(event, context, response.SUCCESS, {})
           }
